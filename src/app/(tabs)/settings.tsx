@@ -1,5 +1,6 @@
 
 import AppUpdateCard from '@/components/app-update-card';
+import DatabaseMaintenanceCard from '@/components/database-maintenance-card';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -132,6 +133,7 @@ export default function SettingsScreen() {
         </Card>
         
         <AppUpdateCard />
+        <DatabaseMaintenanceCard />
       </ScrollView>
     </SafeAreaView>
   );

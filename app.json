@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Debiyan Builder",
+    "name": "DeyKit",
     "slug": "appBuilder",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "debiyanbuilder",
@@ -36,7 +36,8 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

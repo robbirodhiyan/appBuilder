@@ -1,0 +1,19 @@
+
+{
+  "brand": {
+    "name": "Debiyan"
+  },
+  "app": {
+    "name": "DeyKit",
+    "key": "deykit",
+    "slug": "appBuilder",
+    "scheme": "debiyanbuilder",
+    "androidPackage": "app.debiyan.builder",
+    "iosBundleIdentifier": "app.debiyan.builder",
+    "databaseName": "appbuilder.db"
+  },
+  "release": {
+    "repository": "appBuilder",
+    "apkPrefix": "appbuilder"
+  }
+}
