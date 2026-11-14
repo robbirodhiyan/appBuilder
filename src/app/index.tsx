@@ -1,98 +1,105 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import { useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Button,
+  Card,
+  Chip,
+  Divider,
+  Text,
+} from 'react-native-paper';
 
 export default function HomeScreen() {
+  const [counter, setCounter] = useState(0);
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
+      <View style={styles.header}>
+        <Text variant="headlineMedium">
+          Offline Starter Kit
+        </Text>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+        <Text variant="bodyMedium">
+          Expo SDK 58 + React Native Paper
+        </Text>
+      </View>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+      <Card mode="elevated">
+        <Card.Title
+          title="Framework Status"
+          subtitle="Environment Configuration"
+        />
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        <Card.Content style={styles.section}>
+          <Chip>Expo SDK 58</Chip>
+          <Chip>React Native Paper</Chip>
+          <Chip>TypeScript</Chip>
+          <Chip>Expo Router</Chip>
+        </Card.Content>
+      </Card>
+
+      <Card mode="elevated">
+        <Card.Title
+          title="Component Testing"
+          subtitle="Interactive UI"
+        />
+
+        <Card.Content style={styles.section}>
+          <Text variant="titleLarge">
+            Counter: {counter}
+          </Text>
+
+          <Divider />
+
+          <Button
+            mode="contained"
+            onPress={() => setCounter(counter + 1)}
+          >
+            Tambah Counter
+          </Button>
+
+          <Button
+            mode="outlined"
+            onPress={() => setCounter(0)}
+          >
+            Reset Counter
+          </Button>
+        </Card.Content>
+      </Card>
+
+      <Text style={styles.footer}>
+        Offline Starter Kit v1.0.0
+      </Text>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+  content: {
+    padding: 20,
+    gap: 20,
+    width: '100%',
+    maxWidth: 650,
+    alignSelf: 'center',
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  header: {
+    gap: 6,
+    marginTop: 30,
   },
-  title: {
+  section: {
+    gap: 12,
+    paddingBottom: 20,
+  },
+  footer: {
+    color: '#64748B',
     textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+    marginBottom: 20,
   },
 });
