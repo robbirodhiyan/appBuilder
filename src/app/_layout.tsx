@@ -1,9 +1,9 @@
 
+import AutoUpdateChecker from '@/components/auto-update-checker';
+import { AppThemeProvider } from '@/contexts/theme-context';
 import { Stack } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
-import { AppThemeProvider } from '@/contexts/theme-context';
 
 import {
   DATABASE_NAME,
@@ -18,6 +18,7 @@ export default function RootLayout() {
           databaseName={DATABASE_NAME}
           onInit={migrateDbIfNeeded}
         >
+          <AutoUpdateChecker />
           <Stack
             screenOptions={{
               headerShown: false,
