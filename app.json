@@ -1,14 +1,15 @@
 {
   "expo": {
-    "name": "appBuilder",
+    "name": "Debiyan Builder",
     "slug": "appBuilder",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "appbuilder",
+    "scheme": "debiyanbuilder",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "app.debiyan.builder"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +18,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "app.debiyan.builder"
     },
     "web": {
       "bundler": "metro",
@@ -39,6 +41,16 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "a8b087e1-78cf-4221-9b55-71c74d5619be"
+      }
     }
   }
 }

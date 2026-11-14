@@ -1,4 +1,5 @@
 
+import AppUpdateCard from '@/components/app-update-card';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -129,6 +130,8 @@ export default function SettingsScreen() {
             <Text>Icons: Lucide React Native</Text>
           </Card.Content>
         </Card>
+        
+        <AppUpdateCard />
       </ScrollView>
     </SafeAreaView>
   );
