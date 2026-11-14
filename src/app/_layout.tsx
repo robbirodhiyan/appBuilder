@@ -1,30 +1,37 @@
 
 import { Stack } from 'expo-router';
-import {
-  MD3LightTheme,
-  PaperProvider,
-} from 'react-native-paper';
+import { SQLiteProvider } from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-const theme = {
-  ...MD3LightTheme,
-  colors: {
-    ...MD3LightTheme.colors,
-    primary: '#2563EB',
-    secondary: '#64748B',
-  },
-};
+import { AppThemeProvider } from '@/contexts/theme-context';
+
+import {
+  DATABASE_NAME,
+  migrateDbIfNeeded,
+} from '@/database/migrations';
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <PaperProvider theme={theme}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-          }}
-        />
-      </PaperProvider>
+      <AppThemeProvider>
+        <SQLiteProvider
+          databaseName={DATABASE_NAME}
+          onInit={migrateDbIfNeeded}
+        >
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          >
+            <Stack.Screen
+              name="(tabs)"
+              options={{
+                headerShown: false,
+              }}
+            />
+          </Stack>
+        </SQLiteProvider>
+      </AppThemeProvider>
     </SafeAreaProvider>
   );
 }
