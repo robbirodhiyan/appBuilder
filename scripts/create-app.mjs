@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // ============================================================
-// DEBIYAN PROJECT GENERATOR
+// DEBIYAN APP GENERATOR — DeyKit
 // ============================================================
 
 const ROOT = path.resolve(
@@ -18,8 +18,8 @@ const args = process.argv.slice(2);
 // 1. HELPERS
 // ============================================================
 
-function getArgument(name) {
-  const index = args.indexOf(name);
+function argument(flag) {
+  const index = args.indexOf(flag);
 
   if (index === -1) {
     return null;
@@ -28,9 +28,7 @@ function getArgument(name) {
   const value = args[index + 1];
 
   if (!value || value.startsWith('--')) {
-    throw new Error(
-      `Argument ${name} membutuhkan nilai.`
-    );
+    throw new Error(`${flag} membutuhkan nilai.`);
   }
 
   return value.trim();
@@ -44,26 +42,81 @@ function writeJson(filename, data) {
   );
 }
 
+function hexColor(value, field) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(value)) {
+    throw new Error(
+      `${field} harus menggunakan format #RRGGBB.`
+    );
+  }
+
+  return value.toUpperCase();
+}
+
+function assertPng(filename) {
+  if (
+    !fs.existsSync(filename) ||
+    !fs.statSync(filename).isFile()
+  ) {
+    throw new Error(
+      `File icon tidak ditemukan: ${filename}`
+    );
+  }
+
+  const signature = fs
+    .readFileSync(filename)
+    .subarray(0, 8);
+
+  if (
+    !signature.equals(
+      Buffer.from('89504e470d0a1a0a', 'hex')
+    )
+  ) {
+    throw new Error(
+      'File --icon harus berupa PNG valid.'
+    );
+  }
+}
+
 // ============================================================
 // 2. INPUT PROJECT
 // ============================================================
 
-const appName = getArgument('--name');
-const keyInput = getArgument('--key') ?? appName;
+const appName = argument('--name');
 
-const releaseOwner = getArgument('--owner') ?? '';
-const releaseRepositoryInput = getArgument('--repo');
-
-if (!appName || !keyInput) {
+if (!appName) {
   console.error(
-    'Usage: npm run create:app -- --name "DeyLab"'
+    'Contoh: npm run create:app -- --name "DeyNotes"'
   );
 
   process.exit(1);
 }
 
+const keyInput = argument('--key') ?? appName;
+
+const releaseOwner = argument('--owner') ?? '';
+
+const primaryColor = hexColor(
+  argument('--primary') ?? '#6750A4',
+  'Primary color'
+);
+
+const backgroundColor = hexColor(
+  argument('--background') ?? '#FFFFFF',
+  'Background color'
+);
+
+const iconInput = argument('--icon');
+
+const iconSource = iconInput
+  ? path.resolve(iconInput)
+  : null;
+
+if (iconSource) {
+  assertPng(iconSource);
+}
+
 // ============================================================
-// 3. NORMALIZE APPLICATION IDENTITY
+// 3. APPLICATION IDENTITY
 // ============================================================
 
 const appKey = keyInput
@@ -81,12 +134,11 @@ if (!/^[a-z][a-z0-9_]*$/.test(appKey)) {
 }
 
 const releaseRepository =
-  releaseRepositoryInput ?? appKey;
+  argument('--repo') ?? appKey;
 
 if (
-  !/^[A-Za-z0-9._-]+$/.test(releaseRepository) ||
-  releaseRepository === '.' ||
-  releaseRepository === '..'
+  !/^[a-zA-Z0-9._-]+$/.test(releaseRepository) ||
+  ['.', '..'].includes(releaseRepository)
 ) {
   throw new Error(
     'Nama repository GitHub tidak valid.'
@@ -95,7 +147,7 @@ if (
 
 if (
   releaseOwner &&
-  !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(
+  !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$/.test(
     releaseOwner
   )
 ) {
@@ -105,12 +157,15 @@ if (
 }
 
 const slug = appKey.replace(/_/g, '-');
+
 const scheme = appKey.replace(/_/g, '');
 
 const applicationId = `app.debiyan.${appKey}`;
 
-const iosBundleId =
+const iosBundleIdentifier =
   `app.debiyan.${appKey.replace(/_/g, '-')}`;
+
+const databaseName = `${appKey}.db`;
 
 const destination = path.resolve(
   ROOT,
@@ -131,29 +186,34 @@ const workflowTemplate = path.join(
 
 if (fs.existsSync(destination)) {
   throw new Error(
-    `Folder tujuan sudah tersedia: ${destination}\n` +
-    'Generator tidak akan menimpa project lama.'
+    `Folder tujuan sudah tersedia: ${destination}`
   );
 }
 
-const requiredFiles = [
-  path.join(ROOT, 'app.json'),
-  path.join(ROOT, 'package.json'),
-  workflowTemplate,
-];
-
-for (const filename of requiredFiles) {
-  if (!fs.existsSync(filename)) {
+for (const filename of [
+  'app.json',
+  'package.json',
+  'project.config.json',
+]) {
+  if (!fs.existsSync(path.join(ROOT, filename))) {
     throw new Error(
-      `File starter kit tidak ditemukan: ${filename}`
+      `File sumber tidak ditemukan: ${filename}`
     );
   }
 }
 
+if (!fs.existsSync(workflowTemplate)) {
+  throw new Error(
+    'Template workflow tidak ditemukan: ' +
+    'scripts/templates/release-android.yml'
+  );
+}
+
 // ============================================================
-// 5. COPY STARTER KIT
+// 5. COPY SOURCE PROJECT
 // ============================================================
 
+// Tidak membawa Git history, native build, dan cache.
 const excludedDirectories = new Set([
   '.git',
   '.github',
@@ -166,6 +226,18 @@ const excludedDirectories = new Set([
   'build',
   'coverage',
   '.next',
+  '.turbo',
+]);
+
+// Tidak membawa konfigurasi credential project lama.
+const excludedFiles = new Set([
+  '.npmrc',
+  '.netrc',
+  'credentials.json',
+  'google-services.json',
+  'GoogleService-Info.plist',
+  'eas-build.json',
+  'app.config.js',
 ]);
 
 const excludedExtensions = new Set([
@@ -177,8 +249,6 @@ const excludedExtensions = new Set([
   '.db-journal',
   '.sqlite',
   '.sqlite3',
-  '.sqlite-wal',
-  '.sqlite-shm',
   '.jks',
   '.keystore',
   '.p12',
@@ -189,165 +259,281 @@ const excludedExtensions = new Set([
   '.mobileprovision',
 ]);
 
-const excludedFiles = new Set([
-  '.npmrc',
-  '.netrc',
-  'credentials.json',
-  'google-services.json',
-  'GoogleService-Info.plist',
-  'eas-build.json',
-  'app.config.js',
-]);
+console.log(
+  `[Debiyan] Membuat aplikasi: ${appName}`
+);
 
-console.log('');
-console.log(`[Generator] Creating ${appName}...`);
+try {
+  fs.cpSync(ROOT, destination, {
+    recursive: true,
 
-fs.cpSync(ROOT, destination, {
-  recursive: true,
+    filter(source) {
+      const relative = path.relative(ROOT, source);
 
-  filter(source) {
-    const relative = path.relative(ROOT, source);
+      if (!relative) {
+        return true;
+      }
 
-    if (!relative) {
+      if (fs.lstatSync(source).isSymbolicLink()) {
+        return false;
+      }
+
+      const segments = relative.split(path.sep);
+
+      if (
+        segments.some((segment) =>
+          excludedDirectories.has(segment)
+        )
+      ) {
+        return false;
+      }
+
+      const basename = path.basename(source);
+
+      if (excludedFiles.has(basename)) {
+        return false;
+      }
+
+      if (/^\.env(?:\..*)?$/i.test(basename)) {
+        return false;
+      }
+
+      if (
+        excludedExtensions.has(
+          path.extname(basename).toLowerCase()
+        )
+      ) {
+        return false;
+      }
+
       return true;
+    },
+  });
+
+  // ==========================================================
+  // 6. GENERATE project.config.json
+  // ==========================================================
+
+  const branding = {
+    primaryColor,
+    backgroundColor,
+    icon: './assets/images/icon.png',
+    splashImage: './assets/images/splash-icon.png',
+  };
+
+  const project = {
+    brand: {
+      name: 'Debiyan',
+    },
+
+    branding,
+
+    app: {
+      name: appName,
+      key: appKey,
+      slug,
+      scheme,
+      androidPackage: applicationId,
+      iosBundleIdentifier,
+      databaseName,
+    },
+
+    release: {
+      owner: releaseOwner,
+      repository: releaseRepository,
+      apkPrefix: appKey,
+    },
+  };
+
+  writeJson(
+    path.join(destination, 'project.config.json'),
+    project
+  );
+
+  // ==========================================================
+  // 7. ICON AND SPLASH ASSETS
+  // ==========================================================
+
+  const imagesDir = path.join(
+    destination,
+    'assets',
+    'images'
+  );
+
+  fs.mkdirSync(imagesDir, {
+    recursive: true,
+  });
+
+  if (iconSource) {
+    for (const filename of [
+      'icon.png',
+      'android-icon-foreground.png',
+      'splash-icon.png',
+    ]) {
+      fs.copyFileSync(
+        iconSource,
+        path.join(imagesDir, filename)
+      );
     }
+  }
 
-    const segments = relative.split(path.sep);
-
+  for (const filename of [
+    'icon.png',
+    'android-icon-foreground.png',
+    'splash-icon.png',
+  ]) {
     if (
-      segments.some((segment) =>
-        excludedDirectories.has(segment)
+      !fs.existsSync(
+        path.join(imagesDir, filename)
       )
     ) {
-      return false;
+      throw new Error(
+        `Asset gambar tidak tersedia: ${filename}`
+      );
     }
+  }
 
-    // Jangan mengikuti symbolic link.
-    if (fs.lstatSync(source).isSymbolicLink()) {
-      return false;
-    }
+  // ==========================================================
+  // 8. RESET app.json
+  // ==========================================================
 
-    const basename = path.basename(source);
-
-    if (excludedFiles.has(basename)) {
-      return false;
-    }
-
-    // Jangan menyalin .env, .env.local, dan lainnya.
-    if (/^\.env(?:\..*)?$/i.test(basename)) {
-      return false;
-    }
-
-    const extension = path
-      .extname(basename)
-      .toLowerCase();
-
-    if (excludedExtensions.has(extension)) {
-      return false;
-    }
-
-    return true;
-  },
-});
-
-// ============================================================
-// 6. GENERATE project.config.json
-// ============================================================
-
-const project = {
-  brand: {
-    name: 'Debiyan',
-  },
-
-  app: {
-    name: appName,
-    key: appKey,
-    slug,
-    scheme,
-
-    androidPackage: applicationId,
-
-    iosBundleIdentifier: iosBundleId,
-
-    databaseName: `${appKey}.db`,
-  },
-
-  release: {
-    owner: releaseOwner,
-    repository: releaseRepository,
-    apkPrefix: appKey,
-  },
-};
-
-writeJson(
-  path.join(destination, 'project.config.json'),
-  project
-);
-
-// ============================================================
-// 7. RESET app.json
-// ============================================================
-
-const appJsonPath = path.join(
-  destination,
-  'app.json'
-);
-
-const appJson = JSON.parse(
-  fs.readFileSync(appJsonPath, 'utf8')
-);
-
-if (!appJson.expo) {
-  throw new Error(
-    'app.json tidak memiliki object expo.'
+  const appJsonPath = path.join(
+    destination,
+    'app.json'
   );
-}
 
-const expo = appJson.expo;
+  const appJson = JSON.parse(
+    fs.readFileSync(appJsonPath, 'utf8')
+  );
 
-// Application identity.
-expo.name = appName;
-expo.slug = slug;
-expo.scheme = scheme;
+  const expo = appJson.expo;
 
-// Aplikasi baru dimulai dari v1.0.0.
-expo.version = '1.0.0';
+  if (!expo) {
+    throw new Error(
+      'app.json harus memiliki object expo.'
+    );
+  }
 
-// Android.
-expo.android ??= {};
+  // Identitas project baru.
+  expo.name = appName;
+  expo.slug = slug;
+  expo.scheme = scheme;
 
-expo.android.package = applicationId;
-expo.android.versionCode = 1;
+  // Versi aplikasi baru.
+  expo.version = '1.0.0';
 
-// iOS.
-expo.ios ??= {};
+  // Icon utama.
+  expo.icon = branding.icon;
 
-expo.ios.bundleIdentifier = iosBundleId;
-expo.ios.buildNumber = '1';
+  // Identitas EAS lama tidak digunakan.
+  delete expo.owner;
+  delete expo.runtimeVersion;
 
-// Jangan membawa owner/project lama.
-delete expo.owner;
+  // ----------------------------------------------------------
+  // Android
+  // ----------------------------------------------------------
 
-// Hapus identitas EAS dari starter kit.
-if (expo.extra?.eas) {
+  expo.android ??= {};
+
+  expo.android.package = applicationId;
+  expo.android.versionCode = 1;
+
+  expo.android.adaptiveIcon = {
+    ...expo.android.adaptiveIcon,
+
+    foregroundImage:
+      './assets/images/android-icon-foreground.png',
+
+    backgroundColor,
+  };
+
+  // Hindari gambar background icon dari aplikasi lama.
+  delete expo.android.adaptiveIcon.backgroundImage;
+  delete expo.android.adaptiveIcon.monochromeImage;
+  delete expo.android.googleServicesFile;
+
+  // ----------------------------------------------------------
+  // iOS
+  // ----------------------------------------------------------
+
+  expo.ios ??= {};
+
+  expo.ios.bundleIdentifier = iosBundleIdentifier;
+  expo.ios.buildNumber = '1';
+  expo.ios.icon = branding.icon;
+
+  delete expo.ios.googleServicesFile;
+
+  // ----------------------------------------------------------
+  // Web
+  // ----------------------------------------------------------
+
+  expo.web ??= {};
+
+  expo.web.favicon = branding.icon;
+
+  // ----------------------------------------------------------
+  // EAS
+  // ----------------------------------------------------------
+
+  expo.extra ??= {};
+
+  // Hapus EAS Project ID aplikasi asal.
   delete expo.extra.eas;
-}
 
-// Hapus URL update EAS lama.
-if (expo.updates?.url) {
-  delete expo.updates.url;
-}
+  if (expo.updates) {
+    delete expo.updates.url;
+  }
 
-// Runtime version lama tidak diwariskan.
-delete expo.runtimeVersion;
+  // ----------------------------------------------------------
+  // Splash Screen Plugin
+  // ----------------------------------------------------------
 
-writeJson(appJsonPath, appJson);
+  const splashOptions = {
+    backgroundColor,
+    image: branding.splashImage,
+    imageWidth: 120,
+  };
 
-// ============================================================
-// 8. GENERATE app.config.ts
-// ============================================================
+  expo.plugins ??= [];
 
-const expoConfig = String.raw`
+  const splashIndex = expo.plugins.findIndex(
+    (plugin) =>
+      plugin === 'expo-splash-screen' ||
+      (
+        Array.isArray(plugin) &&
+        plugin[0] === 'expo-splash-screen'
+      )
+  );
+
+  if (splashIndex >= 0) {
+    const oldPlugin = expo.plugins[splashIndex];
+
+    const oldOptions = Array.isArray(oldPlugin)
+      ? oldPlugin[1]
+      : {};
+
+    expo.plugins[splashIndex] = [
+      'expo-splash-screen',
+      {
+        ...oldOptions,
+        ...splashOptions,
+      },
+    ];
+  } else {
+    expo.plugins.push([
+      'expo-splash-screen',
+      splashOptions,
+    ]);
+  }
+
+  writeJson(appJsonPath, appJson);
+
+  // ==========================================================
+  // 9. GENERATE app.config.ts
+  // ==========================================================
+
+  const dynamicExpoConfig = String.raw`
 import type {
   ConfigContext,
   ExpoConfig,
@@ -358,7 +544,7 @@ import project from './project.config.json';
 export default ({
   config,
 }: ConfigContext): ExpoConfig => {
-  const { brand, app, release } = project;
+  const { brand, app, release, branding } = project;
 
   if (!/^[a-z][a-z0-9_]*$/.test(app.key)) {
     throw new Error('Invalid Debiyan app key.');
@@ -377,6 +563,45 @@ export default ({
     );
   }
 
+  if (!/^[a-z0-9_-]+\.db$/.test(app.databaseName)) {
+    throw new Error('Invalid databaseName.');
+  }
+
+  const colorPattern = /^#[0-9a-fA-F]{6}$/;
+
+  if (
+    !colorPattern.test(branding.primaryColor) ||
+    !colorPattern.test(branding.backgroundColor)
+  ) {
+    throw new Error(
+      'Warna branding wajib menggunakan format #RRGGBB.'
+    );
+  }
+
+  const splashOptions = {
+    backgroundColor: branding.backgroundColor,
+    image: branding.splashImage,
+    imageWidth: 120,
+  };
+
+  const plugins: NonNullable<ExpoConfig['plugins']> =
+    (config.plugins ?? []).map((plugin) => {
+      if (
+        Array.isArray(plugin) &&
+        plugin[0] === 'expo-splash-screen'
+      ) {
+        return [
+          'expo-splash-screen',
+          {
+            ...plugin[1],
+            ...splashOptions,
+          },
+        ] as [string, Record<string, unknown>];
+      }
+
+      return plugin;
+    });
+
   return {
     ...config,
 
@@ -384,14 +609,31 @@ export default ({
     slug: app.slug,
     scheme: app.scheme,
 
+    icon: branding.icon,
+
+    plugins,
+
     android: {
       ...config.android,
       package: app.androidPackage,
+
+      adaptiveIcon: {
+        ...config.android?.adaptiveIcon,
+        backgroundColor: branding.backgroundColor,
+        foregroundImage:
+          './assets/images/android-icon-foreground.png',
+      },
     },
 
     ios: {
       ...config.ios,
       bundleIdentifier: app.iosBundleIdentifier,
+      icon: branding.icon,
+    },
+
+    web: {
+      ...config.web,
+      favicon: branding.icon,
     },
 
     extra: {
@@ -404,6 +646,12 @@ export default ({
 
         databaseName: app.databaseName,
 
+        primaryColor:
+          branding.primaryColor.toUpperCase(),
+
+        backgroundColor:
+          branding.backgroundColor.toUpperCase(),
+
         apkPrefix: release.apkPrefix,
         releaseOwner: release.owner,
         releaseRepository: release.repository,
@@ -413,17 +661,17 @@ export default ({
 };
 `.trimStart();
 
-fs.writeFileSync(
-  path.join(destination, 'app.config.ts'),
-  expoConfig,
-  'utf8'
-);
+  fs.writeFileSync(
+    path.join(destination, 'app.config.ts'),
+    dynamicExpoConfig,
+    'utf8'
+  );
 
-// ============================================================
-// 9. GENERATE DYNAMIC UPDATE CHECKER
-// ============================================================
+  // ==========================================================
+  // 10. GENERATE DYNAMIC UPDATE SERVICE
+  // ==========================================================
 
-const updateService = String.raw`
+  const updateService = String.raw`
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 
@@ -447,7 +695,8 @@ export type AppUpdateInfo = {
   prerelease: boolean;
 };
 
-const settings = Constants.expoConfig?.extra?.project;
+const settings =
+  Constants.expoConfig?.extra?.project;
 
 const RELEASE_OWNER = String(
   settings?.releaseOwner ?? ''
@@ -461,19 +710,17 @@ function normalize(value: string): string {
   return value.trim().replace(/^v/i, '');
 }
 
-function parseVersion(value: string): number[] | null {
-  const normalized = normalize(value);
+function parts(value: string): number[] | null {
+  const version = normalize(value);
 
-  if (!/^\d+\.\d+\.\d+$/.test(normalized)) {
-    return null;
-  }
-
-  return normalized.split('.').map(Number);
+  return /^\d+\.\d+\.\d+$/.test(version)
+    ? version.split('.').map(Number)
+    : null;
 }
 
-function compareVersions(a: string, b: string): number {
-  const left = parseVersion(a);
-  const right = parseVersion(b);
+function compare(a: string, b: string): number {
+  const left = parts(a);
+  const right = parts(b);
 
   if (!left || !right) {
     return 0;
@@ -527,22 +774,22 @@ export async function checkForAppUpdate():
   const data: unknown = await response.json();
 
   if (!Array.isArray(data)) {
-    throw new Error('Respons GitHub tidak valid.');
+    throw new Error(
+      'Respons GitHub tidak valid.'
+    );
   }
 
-  const releases = data as GithubRelease[];
-
-  const candidates = releases
+  const candidates = (data as GithubRelease[])
     .filter((release) =>
       !release.draft &&
-      parseVersion(release.tag_name) !== null &&
+      parts(release.tag_name) !== null &&
       Array.isArray(release.assets) &&
       release.assets.some((asset) =>
         asset.name.toLowerCase().endsWith('.apk')
       )
     )
     .sort((a, b) =>
-      compareVersions(b.tag_name, a.tag_name)
+      compare(b.tag_name, a.tag_name)
     );
 
   const latest = candidates[0];
@@ -564,158 +811,271 @@ export async function checkForAppUpdate():
   return {
     currentVersion,
     latestVersion: normalize(latest.tag_name),
+
     hasUpdate:
-      compareVersions(
+      compare(
         latest.tag_name,
         currentVersion
       ) > 0,
-    downloadUrl: apk?.browser_download_url ?? null,
+
+    downloadUrl:
+      apk?.browser_download_url ?? null,
+
     prerelease: latest.prerelease,
   };
 }
 `.trimStart();
 
-const updateServicePath = path.join(
-  destination,
-  'src',
-  'services',
-  'app-update.ts'
-);
-
-fs.mkdirSync(
-  path.dirname(updateServicePath),
-  { recursive: true }
-);
-
-fs.writeFileSync(
-  updateServicePath,
-  updateService,
-  'utf8'
-);
-
-// ============================================================
-// 10. UPDATE package.json
-// ============================================================
-
-const packagePath = path.join(
-  destination,
-  'package.json'
-);
-
-const packageJson = JSON.parse(
-  fs.readFileSync(packagePath, 'utf8')
-);
-
-packageJson.name = appKey;
-packageJson.version = '1.0.0';
-
-writeJson(packagePath, packageJson);
-
-// ============================================================
-// 11. UPDATE package-lock.json
-// ============================================================
-
-const lockPath = path.join(
-  destination,
-  'package-lock.json'
-);
-
-if (fs.existsSync(lockPath)) {
-  const lock = JSON.parse(
-    fs.readFileSync(lockPath, 'utf8')
+  const serviceFile = path.join(
+    destination,
+    'src',
+    'services',
+    'app-update.ts'
   );
 
-  lock.name = appKey;
-  lock.version = '1.0.0';
+  fs.mkdirSync(
+    path.dirname(serviceFile),
+    { recursive: true }
+  );
 
-  if (lock.packages?.['']) {
-    lock.packages[''].name = appKey;
-    lock.packages[''].version = '1.0.0';
+  fs.writeFileSync(
+    serviceFile,
+    updateService,
+    'utf8'
+  );
+
+  // ==========================================================
+  // 11. GENERATE AUTO UPDATE CHECKER
+  // ==========================================================
+
+  const autoCheckerSource = String.raw`
+import { useEffect } from 'react';
+
+import {
+  Alert,
+  Linking,
+  Platform,
+} from 'react-native';
+
+import Constants from 'expo-constants';
+
+import {
+  checkForAppUpdate,
+} from '@/services/app-update';
+
+export default function AutoUpdateChecker() {
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    let cancelled = false;
+
+    const appName = String(
+      Constants.expoConfig?.extra?.project?.appName ??
+      Constants.expoConfig?.name ??
+      'Aplikasi'
+    );
+
+    async function check() {
+      try {
+        const update =
+          await checkForAppUpdate();
+
+        if (
+          cancelled ||
+          !update.hasUpdate ||
+          !update.downloadUrl
+        ) {
+          return;
+        }
+
+        const url = update.downloadUrl;
+
+        Alert.alert(
+          'Pembaruan Tersedia',
+          appName + ' v' +
+            update.latestVersion +
+            ' tersedia.\n' +
+            'Versi terpasang: v' +
+            update.currentVersion,
+
+          [
+            {
+              text: 'Nanti',
+              style: 'cancel',
+            },
+            {
+              text: 'Update Sekarang',
+              onPress: () => {
+                Linking.openURL(url).catch(() => {
+                  Alert.alert(
+                    'Gagal',
+                    'Tidak dapat membuka tautan APK.'
+                  );
+                });
+              },
+            },
+          ],
+
+          {
+            cancelable: true,
+          }
+        );
+      } catch {
+        // Ketika offline, aplikasi tetap berjalan.
+      }
+    }
+
+    void check();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return null;
+}
+`.trimStart();
+
+  const autoCheckerFile = path.join(
+    destination,
+    'src',
+    'components',
+    'auto-update-checker.tsx'
+  );
+
+  fs.mkdirSync(
+    path.dirname(autoCheckerFile),
+    { recursive: true }
+  );
+
+  fs.writeFileSync(
+    autoCheckerFile,
+    autoCheckerSource,
+    'utf8'
+  );
+
+  // ==========================================================
+  // 12. UPDATE package.json
+  // ==========================================================
+
+  const packageFile = path.join(
+    destination,
+    'package.json'
+  );
+
+  const packageJson = JSON.parse(
+    fs.readFileSync(packageFile, 'utf8')
+  );
+
+  packageJson.name = appKey;
+  packageJson.version = '1.0.0';
+
+  writeJson(packageFile, packageJson);
+
+  // ==========================================================
+  // 13. UPDATE package-lock.json
+  // ==========================================================
+
+  const lockFile = path.join(
+    destination,
+    'package-lock.json'
+  );
+
+  if (fs.existsSync(lockFile)) {
+    const lock = JSON.parse(
+      fs.readFileSync(lockFile, 'utf8')
+    );
+
+    lock.name = appKey;
+    lock.version = '1.0.0';
+
+    if (lock.packages?.['']) {
+      lock.packages[''].name = appKey;
+      lock.packages[''].version = '1.0.0';
+    }
+
+    writeJson(lockFile, lock);
   }
 
-  writeJson(lockPath, lock);
+  // ==========================================================
+  // 14. GENERATE UNIVERSAL GITHUB ACTIONS
+  // ==========================================================
+
+  const workflowDirectory = path.join(
+    destination,
+    '.github',
+    'workflows'
+  );
+
+  fs.mkdirSync(
+    workflowDirectory,
+    {
+      recursive: true,
+    }
+  );
+
+  fs.copyFileSync(
+    workflowTemplate,
+    path.join(
+      workflowDirectory,
+      'release-android.yml'
+    )
+  );
+
+  // ==========================================================
+  // 15. GENERATOR RESULT
+  // ==========================================================
+
+  console.log('');
+  console.log('========================================');
+  console.log(' DEBIYAN PROJECT GENERATOR');
+  console.log('========================================');
+
+  console.log('');
+  console.log('Project created successfully.');
+  console.log('');
+
+  console.log('Brand      : Debiyan');
+  console.log('App        :', appName);
+  console.log('App Key    :', appKey);
+  console.log('Slug       :', slug);
+
+  console.log('Package    :', applicationId);
+  console.log('Database   :', databaseName);
+
+  console.log('Primary    :', primaryColor);
+  console.log('Background :', backgroundColor);
+
+  console.log(
+    'Icon       :',
+    iconSource ?? 'Starter kit default'
+  );
+
+  console.log('Version    : 1.0.0');
+  console.log('Folder     :', destination);
+  console.log('Workflow   : generated');
+  console.log('EAS Project: not configured');
+
+  console.log('');
+  console.log('Selanjutnya:');
+
+  console.log(`cd /d "${destination}"`);
+  console.log('npm ci');
+  console.log('npx expo config --type public');
+  console.log('npx tsc --noEmit');
+  console.log('npx expo start --web --clear');
+  console.log('npx eas-cli@latest init');
+
+  console.log('');
+} catch (error) {
+  // Hanya hapus folder baru hasil proses generator.
+  // Project utama dan project lama tidak diubah.
+  fs.rmSync(destination, {
+    recursive: true,
+    force: true,
+  });
+
+  throw error;
 }
-
-// ============================================================
-// 12. GENERATE UNIVERSAL GITHUB ACTIONS
-// ============================================================
-
-const workflowDirectory = path.join(
-  destination,
-  '.github',
-  'workflows'
-);
-
-const workflowDestination = path.join(
-  workflowDirectory,
-  'release-android.yml'
-);
-
-fs.mkdirSync(
-  workflowDirectory,
-  { recursive: true }
-);
-
-fs.copyFileSync(
-  workflowTemplate,
-  workflowDestination
-);
-
-// ============================================================
-// 13. RESULT
-// ============================================================
-
-console.log('');
-console.log('========================================');
-console.log(' DEBIYAN PROJECT GENERATOR');
-console.log('========================================');
-
-console.log('');
-console.log('Project created successfully.');
-console.log('');
-
-console.log('Brand    : Debiyan');
-console.log('App      :', appName);
-console.log('App Key  :', appKey);
-console.log('Slug     :', slug);
-
-console.log('Package  :', applicationId);
-console.log('Database :', project.app.databaseName);
-
-console.log('Version  : 1.0.0');
-
-console.log(
-  'Release  :',
-  releaseOwner
-    ? `${releaseOwner}/${releaseRepository}`
-    : 'GitHub owner belum dikonfigurasi'
-);
-
-console.log('APK      :', `${appKey}-v1.0.0.apk`);
-console.log('Folder   :', destination);
-
-console.log('');
-console.log('GitHub Actions: Generated');
-console.log('EAS Project ID: Not configured');
-
-console.log('');
-console.log('========================================');
-console.log(' NEXT STEPS');
-console.log('========================================');
-console.log('');
-
-console.log(`cd /d "${destination}"`);
-
-console.log('npm ci');
-
-console.log('npx expo config --type public');
-
-console.log('npx tsc --noEmit');
-
-console.log('npx eas-cli@latest init');
-
-console.log(
-  'npx eas-cli@latest build --platform android --profile preview'
-);
-
-console.log('');

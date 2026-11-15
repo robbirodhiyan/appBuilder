@@ -3,6 +3,12 @@
   "brand": {
     "name": "Debiyan"
   },
+  "branding": {
+    "primaryColor": "#2563EB",
+    "backgroundColor": "#F8FAFC",
+    "icon": "./assets/images/icon.png",
+    "splashImage": "./assets/images/splash-icon.png"
+  },
   "app": {
     "name": "DeyKit",
     "key": "deykit",
@@ -13,6 +19,7 @@
     "databaseName": "appbuilder.db"
   },
   "release": {
+    "owner": "",
     "repository": "appBuilder",
     "apkPrefix": "appbuilder"
   }
