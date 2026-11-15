@@ -113,7 +113,7 @@ jobs:
           NODE
 
       - name: Validate DeyKit Project
-  run: npm run validate:release
+        run: npm run validate:release
 
       - name: Check existing release
         env:
