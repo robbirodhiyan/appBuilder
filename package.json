@@ -37,7 +37,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "yaml": "^2.9.1"
   },
   "scripts": {
     "start": "expo start",
@@ -46,6 +47,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "create:app": "node scripts/create-app.mjs",
+    "validate": "node scripts/validate-project.mjs && tsc --noEmit",
+    "validate:release": "node scripts/validate-project.mjs --release && tsc --noEmit",
     "lint": "expo lint"
   },
   "private": true

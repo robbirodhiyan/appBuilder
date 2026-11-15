@@ -112,8 +112,8 @@ jobs:
           );
           NODE
 
-      - name: Validate TypeScript
-        run: npx tsc --noEmit
+      - name: Validate DeyKit Project
+  run: npm run validate:release
 
       - name: Check existing release
         env:

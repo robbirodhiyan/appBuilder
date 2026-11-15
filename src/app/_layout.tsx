@@ -2,8 +2,8 @@
 import AutoUpdateChecker from '@/components/auto-update-checker';
 import { AppThemeProvider } from '@/contexts/theme-context';
 
-import { initializeDatabase } from '@/database/initialize';
 import { DATABASE_NAME } from '@/database/migrations';
+import { initializeVerifiedDatabase } from '@/database/verified-initialize';
 
 import { Stack } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
@@ -15,7 +15,7 @@ export default function RootLayout() {
       <AppThemeProvider>
         <SQLiteProvider
           databaseName={DATABASE_NAME}
-          onInit={initializeDatabase}
+  onInit={initializeVerifiedDatabase}
         >
           <AutoUpdateChecker />
 
