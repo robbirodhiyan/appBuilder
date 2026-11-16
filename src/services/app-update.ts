@@ -4,8 +4,9 @@ import Constants from 'expo-constants';
 
 // GitHub repository untuk distribusi APK.
 // Gunakan repository public, tanpa access token di aplikasi.
-const RELEASE_OWNER = 'robbirodhiyan';
-const RELEASE_REPO = 'appBuilder';
+const releaseConfig = Constants.expoConfig?.extra?.project;
+const RELEASE_OWNER = String(releaseConfig?.releaseOwner ?? '').trim();
+const RELEASE_REPO = String(releaseConfig?.releaseRepository ?? '').trim();
 
 const RELEASE_API =
   `https://api.github.com/repos/${RELEASE_OWNER}/${RELEASE_REPO}/releases?per_page=30`;
@@ -76,6 +77,9 @@ export function getInstalledVersion(): string {
 // Memeriksa pembaruan dari GitHub Releases.
 export async function checkForAppUpdate(): Promise<AppUpdateInfo> {
   const currentVersion = getInstalledVersion();
+  if (!RELEASE_OWNER || !RELEASE_REPO) {
+    throw new Error('GitHub release belum dikonfigurasi untuk aplikasi ini.');
+  }
 
   const response = await fetch(RELEASE_API, {
     headers: {

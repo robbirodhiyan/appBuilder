@@ -1998,3 +1998,13 @@ masing-masing.
 **DeyKit — Build Once, Create Independently.**
 
 Maintained under the Debiyan brand.
+
+
+## Sinkronisasi DeyPocket — 2026-11-16
+
+- Jangan samakan `icon.png`, `android-icon-foreground.png` dan splash portrait. Gunakan `--splash` secara eksplisit.
+- Native Expo splash memakai gambar persegi transparan; fullscreen React Native memakai `resizeMode=contain` dan menunggu SQLite verified init.
+- UI Tabs memiliki safe-area bottom, `tabBarHideOnKeyboard=true`. Form input sebaiknya `KeyboardAvoidingView` + ScrollView pada layar form masing-masing (tidak memaksa semua screen).
+- Release APK kini otomatis menaikkan versi `patch/minor/major` dari tag Git, menjaga `app.json`, `package.json`, `package-lock.json` konsisten, dan menggunakan EAS remote `versionCode`.
+- OTA tersedia sebagai opt-in: instal modul `expo-updates` dan `expo-network` yang sesuai SDK, lalu `npm run setup:ota`. Jangan melakukan OTA untuk perubahan native/SDK.
+- `release.owner` dan `release.repository` wajib cocok dengan repository actual saat menjalankan GitHub Actions.

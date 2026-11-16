@@ -54,3 +54,14 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+
+## Fitur generator terbaru
+
+- `--icon <png-square>` untuk ikon aplikasi dan launcher Android.
+- `--splash <png-portrait>` untuk desain custom fullscreen.
+- Startup menunggu verifikasi SQLite; native splash tetap logo persegi transparan.
+- Android Release otomatis: pilihan `patch` / `minor` / `major` pada GitHub Actions.
+- Setup OTA per aplikasi: `npx expo install expo-updates expo-network`, lalu `npm run setup:ota` (setelah EAS init dan update:configure).
+
+Lihat `README_UPDATE.md` pada paket ZIP atau `docs/DEYKIT.md` untuk panduan.

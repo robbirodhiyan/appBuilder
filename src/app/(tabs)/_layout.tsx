@@ -1,5 +1,7 @@
 
 import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from 'react-native-paper';
 
 import {
@@ -10,17 +12,23 @@ import {
 
 export default function TabLayout() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottom = Platform.OS === 'web' ? 0 : Math.max(0, insets.bottom);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor:
           theme.colors.onSurfaceVariant,
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outlineVariant,
+          height: 58 + bottom,
+          paddingBottom: bottom,
+          paddingTop: 4,
         },
         tabBarLabelStyle: {
           fontSize: 12,

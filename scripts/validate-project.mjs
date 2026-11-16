@@ -154,14 +154,19 @@ test('Branding colors', () => {
 });
 
 test('Branding assets', () => {
+  for (const filename of [
+    branding.icon,
+    branding.splashImage,
+    './assets/images/android-icon-foreground.png',
+  ]) {
+    assert(exists(filename), `Branding asset tidak ditemukan: ${filename}`);
+    const buffer = fs.readFileSync(file(filename));
+    assert(buffer.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')), `Bukan PNG: ${filename}`);
+  }
+  const nativeLogo = fs.readFileSync(file('./assets/images/android-icon-foreground.png'));
   assert(
-    exists(branding.icon),
-    `Icon tidak ditemukan: ${branding.icon}`
-  );
-
-  assert(
-    exists(branding.splashImage),
-    `Splash tidak ditemukan: ${branding.splashImage}`
+    nativeLogo.readUInt32BE(16) === nativeLogo.readUInt32BE(20),
+    'Native splash logo Android harus persegi, bukan portrait.'
   );
 });
 
@@ -215,6 +220,18 @@ test('Expo resolved configuration', () => {
     'Expo releaseRepository tidak sesuai'
   );
 
+  const nativeSplash = expo.plugins?.find(
+    (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-splash-screen'
+  );
+  assert(nativeSplash, 'expo-splash-screen belum dikonfigurasi');
+  assert(
+    nativeSplash[1]?.image === './assets/images/android-icon-foreground.png',
+    'Native splash tidak boleh memakai desain portrait splash-icon.png'
+  );
+  assert(
+    expo.updates?.checkAutomatically === 'NEVER',
+    'OTA harus menggunakan pemeriksaan manual agar reload tidak mengganggu pekerjaan.'
+  );
   if (releaseMode) {
     assert(
       typeof expo.extra?.eas?.projectId === 'string' &&
@@ -284,23 +301,27 @@ test('SQLite runtime verification', () => {
   );
 });
 
+test('Startup splash & SQLite readiness', () => {
+  const source = fs.readFileSync(file('src/app/_layout.tsx'), 'utf8');
+  const splash = fs.readFileSync(file('src/components/FullscreenStartupSplash.tsx'), 'utf8');
+  assert(source.includes('initializeVerifiedDatabase(db)'), 'SQLite verified initializer belum dijalankan');
+  assert(/onInit\s*=\s*\{initialize\}/.test(source), 'SQLiteProvider tidak menunggu initializer');
+  assert(source.includes('ready={databaseReady || !!databaseError}'), 'Splash tidak menunggu SQLite');
+  assert(splash.includes('resizeMode="contain"'), 'Custom splash harus contain untuk mencegah zoom');
+  assert(!splash.includes('absoluteFillObject'), 'Gunakan StyleSheet.absoluteFill sesuai tipe RN');
+});
+
 // ============================================================
 // 5. EAS BUILD CONFIGURATION
 // ============================================================
 
 test('EAS preview build profile', () => {
   const preview = easJson.build?.preview;
-
-  assert(
-    preview,
-    'EAS preview profile tidak tersedia'
-  );
-
-  assert(
-    preview.android?.buildType === undefined ||
-    preview.android.buildType === 'apk',
-    'Preview build harus menghasilkan APK'
-  );
+  assert(preview, 'EAS preview profile tidak tersedia');
+  assert(preview.android?.buildType === 'apk', 'Preview build harus menghasilkan APK');
+  assert(preview.channel === 'preview', 'Channel preview belum dikonfigurasi');
+  assert(preview.autoIncrement === true, 'EAS versionCode autoIncrement belum aktif');
+  assert(easJson.cli?.appVersionSource === 'remote', 'Gunakan remote versionCode untuk Android');
 });
 
 // ============================================================
@@ -391,8 +412,13 @@ test('GitHub Actions workflow', () => {
   );
 
   assert(
-    content.includes('eas build'),
+    /(?:^|\s)(?:eas|npx\s+(?:--yes\s+)?eas-cli@[^\s]+)\s+build\b/m.test(content),
     'EAS Build command tidak ditemukan'
+  );
+  assert(
+    content.includes('scripts/ci/bump-version.mjs') &&
+    content.includes('inputs.bump'),
+    'Pilihan versi patch/minor/major belum tersedia'
   );
 
   assert(
@@ -403,6 +429,10 @@ test('GitHub Actions workflow', () => {
   assert(
     content.includes('npm run validate:release'),
     'Release validation belum dipanggil dari CI'
+  );
+  assert(
+    exists('scripts/ci/bump-version.mjs') && exists('scripts/ci/download-apk.mjs'),
+    'Skrip release CI tidak ditemukan'
   );
 });
 

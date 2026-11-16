@@ -123,6 +123,11 @@ if (iconSource) {
   png(iconSource);
 }
 
+// Optional portrait art is independent of the Android launcher icon.
+const splashInput = arg('--splash');
+const splashSource = splashInput ? path.resolve(splashInput) : null;
+if (splashSource) png(splashSource);
+
 // ============================================================
 // 3. APPLICATION IDENTITY
 // ============================================================
@@ -201,6 +206,8 @@ if (fs.existsSync(destination)) {
 
 const requiredFiles = [
   'app.json',
+  'app.config.ts',
+  'src/components/FullscreenStartupSplash.tsx',
   'package.json',
   'package-lock.json',
   'eas.json',
@@ -248,14 +255,12 @@ const layout = fs.readFileSync(
 );
 
 if (
-  !layout.includes('initializeVerifiedDatabase') ||
-  !/onInit\s*=\s*\{initializeVerifiedDatabase\}/.test(
-    layout
-  )
+  !layout.includes('initializeVerifiedDatabase(db)') ||
+  !/onInit\s*=\s*\{initialize\}/.test(layout) ||
+  !layout.includes('<FullscreenStartupSplash')
 ) {
   throw new Error(
-    'SQLiteProvider.onInit harus menggunakan ' +
-    'initializeVerifiedDatabase.'
+    'Root layout harus menunggu SQLite initialization dan menggunakan fullscreen splash.'
   );
 }
 
@@ -461,13 +466,16 @@ try {
     for (const filename of [
       'icon.png',
       'android-icon-foreground.png',
-      'splash-icon.png',
     ]) {
       fs.copyFileSync(
         iconSource,
         path.join(imagesDir, filename)
       );
     }
+  }
+
+  if (splashSource) {
+    fs.copyFileSync(splashSource, path.join(imagesDir, 'splash-icon.png'));
   }
 
   for (const filename of [
@@ -520,10 +528,10 @@ try {
   expo.android.package = androidPackage;
   expo.android.versionCode = 1;
 
+  // Do not retain the starter's backgroundImage/monochromeImage:
+  // they can override the freshly generated brand colors/icons.
   expo.android.adaptiveIcon = {
-    foregroundImage:
-      './assets/images/android-icon-foreground.png',
-
+    foregroundImage: './assets/images/android-icon-foreground.png',
     backgroundColor,
   };
 
@@ -551,10 +559,12 @@ try {
 
   delete expo.extra.eas;
 
-  // Reset EAS Update URL.
-  if (expo.updates) {
-    delete expo.updates.url;
-  }
+  // Reset EAS Update URL/identity. The URL will be assigned by
+  // `eas update:configure` after a project-specific EAS init.
+  expo.updates ??= {};
+  delete expo.updates.url;
+  expo.updates.checkAutomatically = 'NEVER';
+  expo.runtimeVersion = { policy: 'appVersion' };
 
   // ----------------------------------------------------------
   // SPLASH PLUGIN
@@ -564,11 +574,13 @@ try {
 
   const splashConfig = {
     backgroundColor,
-
-    image:
-      project.branding.splashImage,
-
+    image: './assets/images/android-icon-foreground.png',
     imageWidth: 120,
+    resizeMode: 'contain',
+    dark: {
+      backgroundColor,
+      image: './assets/images/android-icon-foreground.png',
+    },
   };
 
   const splashIndex =
@@ -606,181 +618,12 @@ try {
   jsonWrite(appJsonFile, appJson);
 
   // ==========================================================
-  // 10. GENERATE app.config.ts
+  // 10. APP CONFIG SINGLE SOURCE OF TRUTH
   // ==========================================================
-
-  const expoConfig = String.raw`
-import type {
-  ConfigContext,
-  ExpoConfig,
-} from 'expo/config';
-
-import project from './project.config.json';
-
-export default ({
-  config,
-}: ConfigContext): ExpoConfig => {
-  const {
-    brand,
-    app,
-    branding,
-    release,
-  } = project;
-
-  if (!/^[a-z][a-z0-9_]*$/.test(app.key)) {
-    throw new Error('Invalid app key');
-  }
-
-  if (!/^[a-z][a-z0-9-]*$/.test(app.slug)) {
-    throw new Error('Invalid Expo slug');
-  }
-
-  if (!/^[a-z0-9_-]+\.db$/.test(
-    app.databaseName
-  )) {
-    throw new Error('Invalid database name');
-  }
-
-  if (
-    app.androidPackage !==
-    'app.debiyan.' + app.key
-  ) {
-    throw new Error(
-      'Android package tidak sesuai app key'
-    );
-  }
-
-  const hex = /^#[a-fA-F0-9]{6}$/;
-
-  if (
-    !hex.test(branding.primaryColor) ||
-    !hex.test(branding.backgroundColor)
-  ) {
-    throw new Error(
-      'Warna branding harus #RRGGBB'
-    );
-  }
-
-  const plugins = [
-    ...(config.plugins ?? []),
-  ];
-
-  const index = plugins.findIndex(
-    (plugin) =>
-      plugin === 'expo-splash-screen' ||
-      (
-        Array.isArray(plugin) &&
-        plugin[0] === 'expo-splash-screen'
-      )
-  );
-
-  const previous =
-    index >= 0 &&
-    Array.isArray(plugins[index])
-      ? plugins[index][1] ?? {}
-      : {};
-
-  const splash:
-    NonNullable<ExpoConfig['plugins']>[number] = [
-      'expo-splash-screen',
-      {
-        ...previous,
-        backgroundColor:
-          branding.backgroundColor,
-
-        image:
-          branding.splashImage,
-
-        imageWidth: 120,
-      },
-    ];
-
-  if (index < 0) {
-    plugins.push(splash);
-  } else {
-    plugins[index] = splash;
-  }
-
-  return {
-    ...config,
-
-    name: app.name,
-    slug: app.slug,
-    scheme: app.scheme,
-
-    icon: branding.icon,
-
-    plugins,
-
-    android: {
-      ...config.android,
-
-      package:
-        app.androidPackage,
-
-      adaptiveIcon: {
-        foregroundImage:
-          './assets/images/android-icon-foreground.png',
-
-        backgroundColor:
-          branding.backgroundColor,
-      },
-    },
-
-    ios: {
-      ...config.ios,
-
-      bundleIdentifier:
-        app.iosBundleIdentifier,
-
-      icon: branding.icon,
-    },
-
-    web: {
-      ...config.web,
-      favicon: branding.icon,
-    },
-
-    extra: {
-      ...config.extra,
-
-      project: {
-        brandName: brand.name,
-
-        appName: app.name,
-        appKey: app.key,
-
-        databaseName:
-          app.databaseName,
-
-        primaryColor:
-          branding.primaryColor.toUpperCase(),
-
-        backgroundColor:
-          branding.backgroundColor.toUpperCase(),
-
-        apkPrefix:
-          release.apkPrefix,
-
-        releaseOwner:
-          release.owner,
-
-        releaseRepository:
-          release.repository,
-      },
-    },
-  };
-};
-`.trimStart();
-
-  fs.writeFileSync(
-    path.join(
-      destination,
-      'app.config.ts'
-    ),
-    expoConfig,
-    'utf8'
-  );
+  // `app.config.ts` is inherited from the DeyKit starter (step 6).
+  // That same file handles identity, native splash and EAS settings.
+  // Do not generate a second, divergent app.config.ts template here.
+  requireFile(path.join(destination, 'app.config.ts'));
 
   // ==========================================================
   // 11. GENERATE DYNAMIC UPDATE SERVICE
@@ -1207,10 +1050,11 @@ export default function AutoUpdateChecker() {
     `npx expo start --web\n` +
     `\`\`\`\n\n` +
 
-    `## Build Android\n\n` +
+    `## Android APK & OTA\n\n` +
 
     `\`\`\`cmd\n` +
     `npx eas-cli@latest init\n` +
+    `npx eas-cli@latest update:configure\n` +
     `npx eas-cli@latest build --platform android --profile preview\n` +
     `\`\`\`\n\n` +
 
@@ -1222,7 +1066,8 @@ export default function AutoUpdateChecker() {
 
     `Simpan \`EXPO_TOKEN\` di GitHub Actions Secrets.\n\n` +
 
-    `Jalankan \`npm run validate:release\` sebelum rilis.\n\n` +
+    `Gunakan GitHub Actions -> Debiyan Android Release -> patch/minor/major.\n` +
+    `Jalankan \`npm run validate:release\` setelah EAS init.\n\n` +
 
     `Jangan mengganti Android Package, ` +
     `nama database SQLite, atau signing key ` +
@@ -1304,6 +1149,7 @@ export default function AutoUpdateChecker() {
   console.log('npm run validate');
   console.log('npx expo start --web --clear');
   console.log('npx eas-cli@latest init');
+  console.log('npx eas-cli@latest update:configure');
 
   console.log('');
 } catch (error) {

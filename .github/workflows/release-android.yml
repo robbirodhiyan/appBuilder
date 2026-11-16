@@ -1,86 +1,76 @@
-
-name: Android APK Release
+name: Debiyan Android Release
 
 on:
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Semantic version increment'
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
 
 concurrency:
-  group: android-apk-release
+  group: android-release-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
-  build-release:
-    name: Build and Publish APK
+  release:
+    name: Build & publish signed APK
     runs-on: ubuntu-latest
     timeout-minutes: 120
-
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - name: Checkout full source & tags
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Expo TypeScript definitions
-        run: npx expo customize tsconfig.json
-
-      - name: Validate TypeScript
-        run: npx tsc --noEmit
-
-      - name: Read application version
-        id: app
-        shell: bash
-        run: |
-          VERSION=$(node -p "require('./app.json').expo.version")
-
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid application version: $VERSION"
-            exit 1
-          fi
-
-          if [[ "$GITHUB_REF_NAME" != "master" ]]; then
-            echo "Release must run from master branch."
-            exit 1
-          fi
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Building Debiyan Builder v$VERSION"
-
-      - name: Ensure release does not exist
+      - name: Validate repository, branch and EAS identity
         env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.app.outputs.version }}
-        shell: bash
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "Release v$VERSION already exists."
-            exit 1
-          fi
+          node <<'NODE'
+          const fs = require('node:fs');
+          const p = JSON.parse(fs.readFileSync('project.config.json', 'utf8'));
+          const a = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          if (process.env.GITHUB_REF_NAME !== process.env.DEFAULT_BRANCH) throw new Error('Release must run on default branch');
+          const configured = `${p.release.owner}/${p.release.repository}`;
+          if (configured.toLowerCase() !== process.env.GITHUB_REPOSITORY.toLowerCase()) throw new Error('GitHub repository mismatch: configure release.owner/repository');
+          if (!a.expo.extra?.eas?.projectId) throw new Error('Missing EAS Project ID: run eas init, commit changes');
+          NODE
 
-          if git ls-remote --exit-code --tags origin \
-            "refs/tags/v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists."
-            exit 1
-          fi
+      - name: Increment app version automatically
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: node scripts/ci/bump-version.mjs "$BUMP"
 
-      - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
+      - name: Validate DeyKit project
+        run: npm run validate:release
+
+      - name: Setup Expo & EAS
+        uses: expo/expo-github-action@v9
         with:
           eas-version: latest
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build signed Android APK
-        shell: bash
+      - name: Build Android APK on EAS
         run: |
           eas build \
             --platform android \
@@ -89,89 +79,31 @@ jobs:
             --wait \
             --json > eas-build.json
 
-      - name: Download APK from EAS
+      - name: Download release APK
         env:
-          VERSION: ${{ steps.app.outputs.version }}
-        shell: bash
+          VERSION: ${{ steps.version.outputs.version }}
+          APK_PREFIX: ${{ steps.version.outputs.prefix }}
+        run: node scripts/ci/download-apk.mjs
+
+      - name: Commit synchronized version files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const path = require('node:path');
-
-          async function main() {
-            const raw = fs.readFileSync(
-              'eas-build.json',
-              'utf8'
-            );
-
-            const result = JSON.parse(raw);
-            const build = Array.isArray(result)
-              ? result[0]
-              : result;
-
-            if (!build || build.status?.toUpperCase() !== 'FINISHED') {
-              throw new Error('EAS Build did not finish successfully.');
-            }
-
-            const url =
-              build.artifacts?.buildUrl ??
-              build.artifacts?.applicationArchiveUrl;
-
-            if (!url || !url.startsWith('https://')) {
-              throw new Error('APK download URL not found.');
-            }
-
-            const response = await fetch(url);
-
-            if (!response.ok) {
-              throw new Error(
-                `APK download failed: HTTP ${response.status}`
-              );
-            }
-
-            const bytes = Buffer.from(
-              await response.arrayBuffer()
-            );
-
-            // APK is a ZIP-format archive.
-            if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-              throw new Error('Downloaded file is not a valid APK archive.');
-            }
-
-            fs.mkdirSync('dist', { recursive: true });
-
-            const filename = path.join(
-              'dist',
-              `debiyan-builder-v${process.env.VERSION}.apk`
-            );
-
-            fs.writeFileSync(filename, bytes);
-
-            console.log(
-              `APK ready: ${filename} (${bytes.length} bytes)`
-            );
-          }
-
-          main().catch((error) => {
-            console.error(error);
-            process.exitCode = 1;
-          });
-          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.json package.json package-lock.json
+          git commit -m "chore(release): v$VERSION [skip ci]"
+          git push origin "HEAD:$GITHUB_REF_NAME"
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.app.outputs.version }}
-        shell: bash
+          VERSION: ${{ steps.version.outputs.version }}
+          APK_PREFIX: ${{ steps.version.outputs.prefix }}
+          APP_NAME: ${{ steps.version.outputs.app_name }}
         run: |
           gh release create "v$VERSION" \
-            "dist/debiyan-builder-v$VERSION.apk" \
-            --title "Debiyan Builder v$VERSION" \
-            --target "$GITHUB_SHA" \
+            "dist/$APK_PREFIX-v$VERSION.apk" \
+            --title "$APP_NAME v$VERSION" \
+            --target "$(git rev-parse HEAD)" \
             --generate-notes
-
-      - name: Release completed
-        env:
-          VERSION: ${{ steps.app.outputs.version }}
-        run: |
-          echo "Successfully published v$VERSION"

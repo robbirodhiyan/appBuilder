@@ -13,10 +13,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#F8FAFC"
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.debiyan.builder"
@@ -31,9 +29,14 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "image": "./assets/images/android-icon-foreground.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
+          "backgroundColor": "#F8FAFC",
+          "dark": {
+            "image": "./assets/images/android-icon-foreground.png",
+            "backgroundColor": "#F8FAFC"
+          }
         }
       ],
       "expo-sqlite",
@@ -52,6 +55,12 @@
       "eas": {
         "projectId": "a8b087e1-78cf-4221-9b55-71c74d5619be"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "checkAutomatically": "NEVER"
     }
   }
 }

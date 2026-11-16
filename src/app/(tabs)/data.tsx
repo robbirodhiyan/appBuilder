@@ -6,6 +6,8 @@ import { useCallback, useState } from 'react';
 import {
     ScrollView,
     StyleSheet,
+    KeyboardAvoidingView,
+    Platform,
     View,
 } from 'react-native';
 
@@ -301,6 +303,10 @@ export default function DataScreen() {
       </SafeAreaView>
 
       <Portal>
+        <KeyboardAvoidingView
+          style={{ flex: 1, justifyContent: 'center' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <Dialog
           visible={formVisible}
           onDismiss={closeForm}
@@ -358,6 +364,8 @@ export default function DataScreen() {
             </Button>
           </Dialog.Actions>
         </Dialog>
+
+        </KeyboardAvoidingView>
 
         <Dialog
           visible={deleteTarget !== null}

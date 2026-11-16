@@ -1,5 +1,6 @@
 
 import { useEffect } from 'react';
+import Constants from 'expo-constants';
 import {
     Alert,
     Linking,
@@ -32,7 +33,7 @@ export default function AutoUpdateChecker() {
 
         Alert.alert(
           'Pembaruan Tersedia',
-          `Debiyan Builder v${result.latestVersion} tersedia.\n\n` +
+          `${Constants.expoConfig?.name ?? 'Aplikasi'} v${result.latestVersion} tersedia.\n\n` +
             `Versi terinstal: v${result.currentVersion}\n\n` +
             'Apakah ingin mengunduh pembaruan sekarang?',
           [

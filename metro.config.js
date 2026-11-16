@@ -2,6 +2,9 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
+// Windows: avoid Metro worker memory spikes on constrained machines.
+if (process.platform === 'win32') config.maxWorkers = 1;
+
 // SQLite WebAssembly
 if (!config.resolver.assetExts.includes('wasm')) {
   config.resolver.assetExts.push('wasm');

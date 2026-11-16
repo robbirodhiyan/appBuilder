@@ -1,5 +1,7 @@
+import OtaUpdateCard from '@/components/ota-update-card';
 
 import AppUpdateCard from '@/components/app-update-card';
+import Constants from 'expo-constants';
 import DatabaseMaintenanceCard from '@/components/database-maintenance-card';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -124,14 +126,15 @@ export default function SettingsScreen() {
               </Text>
             </View>
 
-            <Text>Application: Offline Starter Kit</Text>
-            <Text>Version: 1.0.0</Text>
+            <Text>Application: {Constants.expoConfig?.name ?? 'Aplikasi'}</Text>
+            <Text>Version: {Constants.expoConfig?.version ?? '1.0.0'}</Text>
             <Text>Framework: Expo SDK 58</Text>
             <Text>UI: React Native Paper</Text>
             <Text>Icons: Lucide React Native</Text>
           </Card.Content>
         </Card>
         
+        <OtaUpdateCard />
         <AppUpdateCard />
         <DatabaseMaintenanceCard />
       </ScrollView>
